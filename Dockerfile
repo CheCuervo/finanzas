@@ -11,19 +11,16 @@ COPY gradle ./gradle
 COPY build.gradle .
 COPY settings.gradle .
 
-# --- CORRECCIÓN ---
 # Damos permisos de ejecución al script de Gradle.
 RUN chmod +x ./gradlew
-
-# Descargamos las dependencias de Gradle. Esto se cachea para acelerar builds futuros.
-RUN ./gradlew dependencies
 
 # Copiamos el resto del código fuente de la aplicación.
 COPY src ./src
 
+# --- CORRECCIÓN ---
 # Ejecutamos el comando para construir el proyecto y crear el archivo JAR.
-# El --no-daemon es importante para entornos de CI/CD como Render.
-RUN ./gradlew build --no-daemon
+# Se elimina el paso 'dependencies' y se añade '--stacktrace' para obtener logs de error detallados.
+RUN ./gradlew build --no-daemon --stacktrace
 
 
 # --- Etapa 2: Ejecución (Runtime Stage) ---
