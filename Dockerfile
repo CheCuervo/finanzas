@@ -2,6 +2,11 @@
 # Usamos una imagen de OpenJDK 21 completa que incluye Gradle para construir el proyecto.
 FROM openjdk:21-jdk as builder
 
+# --- CORRECCIÓN ---
+# Actualizamos los paquetes e instalamos 'procps', que contiene la utilidad 'xargs'.
+# Esto es necesario para que el script de gradlew pueda ejecutarse correctamente.
+RUN apt-get update && apt-get install -y procps
+
 # Establecemos el directorio de trabajo.
 WORKDIR /app
 
@@ -15,9 +20,7 @@ COPY src ./src
 # Damos permisos de ejecución al script de Gradle.
 RUN chmod +x ./gradlew
 
-# --- CORRECCIÓN ---
-# Ejecutamos el comando de construcción en un solo paso y aumentamos la memoria de Gradle.
-# Esto simplifica el proceso y puede resolver problemas en entornos con recursos limitados.
+# Ejecutamos el comando de construcción en un solo paso.
 RUN ./gradlew build -x test --no-daemon --stacktrace
 
 
