@@ -5,15 +5,15 @@ FROM openjdk:21-jdk as builder
 # Establecemos el directorio de trabajo.
 WORKDIR /app
 
-# Damos permisos de ejecución al script de Gradle.
-RUN chmod +x ./gradlew
-
+# --- CORRECCIÓN: Se copian los archivos ANTES de dar permisos ---
 # Copiamos los archivos de Gradle primero para aprovechar el cache de Docker.
-# Si estos archivos no cambian, Docker no volverá a descargar las dependencias.
 COPY gradlew .
 COPY gradle ./gradle
 COPY build.gradle .
 COPY settings.gradle .
+
+# Ahora que el archivo existe, le damos permisos de ejecución.
+RUN chmod +x ./gradlew
 
 # Descargamos las dependencias. Este paso se cachea si build.gradle no cambia.
 RUN ./gradlew dependencies --no-daemon
