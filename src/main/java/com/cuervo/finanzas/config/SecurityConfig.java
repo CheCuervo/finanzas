@@ -24,9 +24,11 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authRequest ->
                         authRequest
-                                // Esta es la línea clave: permite todas las peticiones a /auth/**
-                                .requestMatchers("/auth/**").permitAll()
-                                // Para cualquier otra petición, se requiere autenticación.
+                                // --- CORRECCIÓN ---
+                                // Se permite el acceso público tanto a los endpoints de autenticación
+                                // como al endpoint de salud de Actuator.
+                                .requestMatchers("/auth/**", "/actuator/health").permitAll()
+                                // Cualquier otra petición requiere autenticación.
                                 .anyRequest().authenticated()
                 )
                 .sessionManagement(sessionManager ->
