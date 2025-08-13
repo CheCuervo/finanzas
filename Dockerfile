@@ -5,21 +5,24 @@ FROM openjdk:21-jdk as builder
 # Establecemos el directorio de trabajo.
 WORKDIR /app
 
-# Copiamos los archivos de Gradle para descargar las dependencias.
+# Damos permisos de ejecución al script de Gradle.
+RUN chmod +x ./gradlew
+
+# Copiamos los archivos de Gradle primero para aprovechar el cache de Docker.
+# Si estos archivos no cambian, Docker no volverá a descargar las dependencias.
 COPY gradlew .
 COPY gradle ./gradle
 COPY build.gradle .
 COPY settings.gradle .
 
-# Damos permisos de ejecución al script de Gradle.
-RUN chmod +x ./gradlew
+# Descargamos las dependencias. Este paso se cachea si build.gradle no cambia.
+RUN ./gradlew dependencies --no-daemon
 
-# Copiamos el resto del código fuente de la aplicación.
+# Ahora copiamos el resto del código fuente. Si solo cambia el código,
+# el paso anterior no se vuelve a ejecutar.
 COPY src ./src
 
-# --- CORRECCIÓN ---
-# Ejecutamos el comando para construir el proyecto, saltando las pruebas (-x test).
-# Esto es una práctica común en entornos de CI/CD para evitar fallos por dependencias de test.
+# Ejecutamos el comando para construir el proyecto, saltando las pruebas.
 RUN ./gradlew build -x test --no-daemon --stacktrace
 
 
