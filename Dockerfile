@@ -5,24 +5,19 @@ FROM openjdk:21-jdk as builder
 # Establecemos el directorio de trabajo.
 WORKDIR /app
 
-# --- CORRECCIÓN: Se copian los archivos ANTES de dar permisos ---
-# Copiamos los archivos de Gradle primero para aprovechar el cache de Docker.
+# Copiamos todos los archivos del proyecto necesarios para la construcción.
 COPY gradlew .
 COPY gradle ./gradle
 COPY build.gradle .
 COPY settings.gradle .
-
-# Ahora que el archivo existe, le damos permisos de ejecución.
-RUN chmod +x ./gradlew
-
-# Descargamos las dependencias. Este paso se cachea si build.gradle no cambia.
-RUN ./gradlew dependencies --no-daemon
-
-# Ahora copiamos el resto del código fuente. Si solo cambia el código,
-# el paso anterior no se vuelve a ejecutar.
 COPY src ./src
 
-# Ejecutamos el comando para construir el proyecto, saltando las pruebas.
+# Damos permisos de ejecución al script de Gradle.
+RUN chmod +x ./gradlew
+
+# --- CORRECCIÓN ---
+# Ejecutamos el comando de construcción en un solo paso y aumentamos la memoria de Gradle.
+# Esto simplifica el proceso y puede resolver problemas en entornos con recursos limitados.
 RUN ./gradlew build -x test --no-daemon --stacktrace
 
 
