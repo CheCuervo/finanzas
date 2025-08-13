@@ -11,6 +11,10 @@ COPY gradle ./gradle
 COPY build.gradle .
 COPY settings.gradle .
 
+# --- CORRECCIÓN ---
+# Damos permisos de ejecución al script de Gradle.
+RUN chmod +x ./gradlew
+
 # Descargamos las dependencias de Gradle. Esto se cachea para acelerar builds futuros.
 RUN ./gradlew dependencies
 
