@@ -29,6 +29,8 @@ dependencies {
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
 	// --- Cambio de Conector de Base de Datos ---
 	// Se elimina la dependencia de MySQL y se añade la de PostgreSQL
 	runtimeOnly 'org.postgresql:postgresql'
