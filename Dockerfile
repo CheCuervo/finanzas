@@ -3,9 +3,9 @@
 FROM openjdk:21-jdk as builder
 
 # --- CORRECCIÓN ---
-# Actualizamos los paquetes e instalamos 'procps', que contiene la utilidad 'xargs'.
-# Esto es necesario para que el script de gradlew pueda ejecutarse correctamente.
-RUN apt-get update && apt-get install -y procps
+# La imagen base usa 'microdnf' como gestor de paquetes, no 'apt-get'.
+# Instalamos 'procps-ng' que contiene la utilidad 'xargs'.
+RUN microdnf install -y procps-ng
 
 # Establecemos el directorio de trabajo.
 WORKDIR /app
