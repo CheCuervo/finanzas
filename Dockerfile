@@ -1,19 +1,39 @@
-# 1. Usar una imagen base oficial de Java 21.
-# 'slim' es una versión más ligera, ideal para producción.
-FROM openjdk:21-jdk-slim
+# --- Etapa 1: Construcción (Build Stage) ---
+# Usamos una imagen de OpenJDK 21 completa que incluye Gradle para construir el proyecto.
+FROM openjdk:21-jdk as builder
 
-# 2. Establecer el directorio de trabajo dentro del contenedor.
-# Todos los comandos siguientes se ejecutarán desde esta carpeta.
+# Establecemos el directorio de trabajo.
 WORKDIR /app
 
-# 3. Copiar el archivo JAR compilado al contenedor.
-# Gradle construye el JAR en la carpeta 'build/libs/'. El '*' se usa
-# para que coincida con el nombre del archivo JAR sin importar la versión.
-COPY build/libs/*.jar app.jar
+# Copiamos los archivos de Gradle para descargar las dependencias.
+COPY gradlew .
+COPY gradle ./gradle
+COPY build.gradle .
+COPY settings.gradle .
 
-# 4. Exponer el puerto en el que corre tu aplicación.
-# Spring Boot usa el puerto 8080 por defecto.
+# Descargamos las dependencias de Gradle. Esto se cachea para acelerar builds futuros.
+RUN ./gradlew dependencies
+
+# Copiamos el resto del código fuente de la aplicación.
+COPY src ./src
+
+# Ejecutamos el comando para construir el proyecto y crear el archivo JAR.
+# El --no-daemon es importante para entornos de CI/CD como Render.
+RUN ./gradlew build --no-daemon
+
+
+# --- Etapa 2: Ejecución (Runtime Stage) ---
+# Usamos una imagen 'slim' mucho más ligera para la ejecución, lo que es más eficiente.
+FROM openjdk:21-jdk-slim
+
+# Establecemos el directorio de trabajo.
+WORKDIR /app
+
+# Copiamos únicamente el archivo JAR desde la etapa de construcción ('builder').
+COPY --from=builder /app/build/libs/*.jar app.jar
+
+# Exponemos el puerto 8080.
 EXPOSE 8080
 
-# 5. El comando para ejecutar tu aplicación cuando el contenedor inicie.
+# El comando para ejecutar la aplicación.
 ENTRYPOINT ["java","-jar","app.jar"]
