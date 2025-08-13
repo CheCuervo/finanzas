@@ -3,9 +3,8 @@
 FROM openjdk:21-jdk as builder
 
 # --- CORRECCIÓN ---
-# La imagen base usa 'microdnf' como gestor de paquetes, no 'apt-get'.
-# Instalamos 'procps-ng' que contiene la utilidad 'xargs'.
-RUN microdnf install -y procps-ng
+# La imagen base usa 'microdnf'. El paquete que contiene 'xargs' es 'findutils'.
+RUN microdnf install -y findutils
 
 # Establecemos el directorio de trabajo.
 WORKDIR /app
