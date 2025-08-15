@@ -31,8 +31,8 @@ public interface LibroReservaRepository extends JpaRepository<LibroReserva, Long
      * y devuelve los resultados de forma paginada.
      */
     @Query("SELECT lr FROM LibroReserva lr WHERE lr.reserva.id = :reservaId " +
-            "AND FUNCTION('YEAR', lr.fecha) = :anio " +
-            "AND FUNCTION('MONTH', lr.fecha) = :mes " +
+            "AND EXTRACT(YEAR FROM lr.fecha) = :anio " +
+            "AND EXTRACT(MONTH FROM lr.fecha) = :mes " +
             "ORDER BY lr.fecha DESC")
     Page<LibroReserva> findByReservaIdAndFecha(@Param("reservaId") Long reservaId,
                                                @Param("anio") int anio,

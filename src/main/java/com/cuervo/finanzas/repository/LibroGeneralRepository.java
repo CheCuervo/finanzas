@@ -25,9 +25,13 @@ public interface LibroGeneralRepository extends JpaRepository<LibroGeneral, Long
      * Busca todos los movimientos de una cuenta específica, filtrando por mes y año,
      * y devuelve los resultados de forma paginada.
      */
+    /**
+     * Busca todos los movimientos de una cuenta específica, filtrando por mes y año,
+     * y devuelve los resultados de forma paginada.
+     */
     @Query("SELECT lg FROM LibroGeneral lg WHERE lg.cuenta.id = :cuentaId " +
-            "AND FUNCTION('YEAR', lg.fecha) = :anio " +
-            "AND FUNCTION('MONTH', lg.fecha) = :mes " +
+            "AND EXTRACT(YEAR FROM lg.fecha) = :anio " +
+            "AND EXTRACT(MONTH FROM lg.fecha) = :mes " +
             "ORDER BY lg.fecha DESC")
     Page<LibroGeneral> findByCuentaIdAndFecha(@Param("cuentaId") Long cuentaId,
                                               @Param("anio") int anio,
