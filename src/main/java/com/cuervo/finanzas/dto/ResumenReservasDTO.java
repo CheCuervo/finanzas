@@ -14,7 +14,18 @@ import java.util.List;
 @AllArgsConstructor
 public class ResumenReservasDTO {
     private BigDecimal totalReservado;
-    private BigDecimal totalReservadoAhorros; // Renombrado
-    private BigDecimal totalReservadoGastoFijos; // Renombrado
+    private BigDecimal totalReservadoAhorros;
+    private BigDecimal totalReservadoGastoFijos;
+    private BigDecimal totalReservadoInversiones; // Nuevo campo
+    
+    private BigDecimal pptoSemanalAhorros;
+    private BigDecimal pptoSemanalGastosFijos;
+    private BigDecimal pptoSemanalInversiones; // Nuevo campo
+    private BigDecimal pptoSemanalTotal;
+    
+    private BigDecimal pptoMensualAhorros;
+    private BigDecimal pptoMensualGastosFijos;
+    private BigDecimal pptoMensualTotal;
+
     private List<ReservaDetalleDTO> reservas;
 }

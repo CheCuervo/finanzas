@@ -17,10 +17,18 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
     List<Reserva> findAllByUser(User user);
     Optional<Reserva> findByIdAndUser(Long id, User user);
 
-    /**
-     * Suma el valor de todos los movimientos de tipo 'Reserva' para un usuario,
-     * filtrando por el tipo de reserva (GASTO_FIJO o AHORRO).
-     */
     @Query("SELECT COALESCE(SUM(lr.valor), 0) FROM LibroReserva lr WHERE lr.reserva.user = :user AND lr.reserva.tipo = :tipo AND lr.tipoMovimiento = 'Reserva'")
     BigDecimal sumTotalReservadoByTipoAndUser(@Param("user") User user, @Param("tipo") TipoReserva tipo);
+
+    /**
+     * Suma el valor de la reserva semanal para un usuario, filtrando por el tipo de reserva.
+     */
+    @Query("SELECT COALESCE(SUM(r.valorReservaSemanal), 0) FROM Reserva r WHERE r.user = :user AND r.tipo = :tipo")
+    BigDecimal sumValorReservaSemanalByUserAndTipo(@Param("user") User user, @Param("tipo") TipoReserva tipo);
+
+    /**
+     * Suma el valor total de la reserva semanal para un usuario.
+     */
+    @Query("SELECT COALESCE(SUM(r.valorReservaSemanal), 0) FROM Reserva r WHERE r.user = :user")
+    BigDecimal sumTotalValorReservaSemanalByUser(@Param("user") User user);
 }

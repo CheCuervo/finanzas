@@ -32,4 +32,13 @@ public class FinanzasController {
         finanzasService.registrarMovimientoGeneral(request);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
+
+    /**
+     * Endpoint para eliminar un movimiento del libro general.
+     */
+    @DeleteMapping("/movimientos/{id}")
+    public ResponseEntity<Void> eliminarMovimiento(@PathVariable Long id) {
+        finanzasService.eliminarMovimiento(id);
+        return ResponseEntity.noContent().build(); // Devuelve 204 No Content si es exitoso
+    }
 }

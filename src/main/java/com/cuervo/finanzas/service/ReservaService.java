@@ -13,9 +13,14 @@ import com.cuervo.finanzas.repository.ReservaRepository;
 import com.cuervo.finanzas.service.auth.AuthHelper;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -38,6 +43,14 @@ public class ReservaService {
         nuevaReserva.setValorMeta(request.getValorMeta());
         nuevaReserva.setTipo(request.getTipo());
         nuevaReserva.setValorReservaSemanal(request.getValorReservaSemanal());
+
+        if (request.getTipo() == TipoReserva.GASTO_FIJO) {
+            LocalDate lastDayOfMonth = LocalDate.now().with(TemporalAdjusters.lastDayOfMonth());
+            nuevaReserva.setFechaMeta(lastDayOfMonth);
+        } else {
+            nuevaReserva.setFechaMeta(request.getFechaMeta());
+        }
+
         nuevaReserva.setUser(user);
         return reservaRepository.save(nuevaReserva);
     }
@@ -61,6 +74,14 @@ public class ReservaService {
         reserva.setValorMeta(request.getValorMeta());
         reserva.setTipo(request.getTipo());
         reserva.setValorReservaSemanal(request.getValorReservaSemanal());
+
+        if (request.getTipo() == TipoReserva.GASTO_FIJO) {
+            LocalDate lastDayOfMonth = LocalDate.now().with(TemporalAdjusters.lastDayOfMonth());
+            reserva.setFechaMeta(lastDayOfMonth);
+        } else {
+            reserva.setFechaMeta(request.getFechaMeta());
+        }
+
         return reservaRepository.save(reserva);
     }
 
@@ -87,28 +108,28 @@ public class ReservaService {
                         .orElseThrow(() -> new NegocioException("La Cuenta con id " + request.getIdCuenta() + " no existe o no pertenece al usuario."));
             }
             registrarMovimientoLibroReserva("Reserva", request.getValor(), reserva, cuenta, request.getConcepto());
-        } else if ("Pago".equalsIgnoreCase(tipoMovimientoReserva)) {
+        } else if ("Retiro".equalsIgnoreCase(tipoMovimientoReserva)) {
             if (request.getIdCuenta() == null) {
-                throw new NegocioException("Para un movimiento de 'Pago', el campo 'idCuenta' es obligatorio.");
+                throw new NegocioException("Para un movimiento de 'Retiro', el campo 'idCuenta' es obligatorio.");
             }
             Cuenta cuenta = cuentaRepository.findByIdAndUser(request.getIdCuenta(), user)
                     .orElseThrow(() -> new NegocioException("La Cuenta con id " + request.getIdCuenta() + " no existe o no pertenece al usuario."));
-            procesarPago(request.getValor(), reserva, cuenta, request.getConcepto());
+            procesarRetiro(request.getValor(), reserva, cuenta, request.getConcepto());
         } else {
-            throw new NegocioException("El tipo de movimiento de la reserva debe ser 'Reserva' o 'Pago'.");
+            throw new NegocioException("El tipo de movimiento de la reserva debe ser 'Reserva' o 'Retiro'.");
         }
     }
 
-    private void procesarPago(BigDecimal valorPago, Reserva reserva, Cuenta cuenta, String concepto) {
+    private void procesarRetiro(BigDecimal valorRetiro, Reserva reserva, Cuenta cuenta, String concepto) {
         BigDecimal totalReservado = libroReservaRepository.sumValorByReservaAndTipo(reserva.getId(), "Reserva");
-        BigDecimal totalPagado = libroReservaRepository.sumValorByReservaAndTipo(reserva.getId(), "Pago");
+        BigDecimal totalPagado = libroReservaRepository.sumValorByReservaAndTipo(reserva.getId(), "Retiro");
         BigDecimal saldoReservado = totalReservado.subtract(totalPagado);
 
-        if (valorPago.compareTo(saldoReservado) > 0) {
-            throw new NegocioException("El valor pagado (" + valorPago + ") supera el saldo reservado disponible (" + saldoReservado + ") para esta Reserva.");
+        if (valorRetiro.compareTo(saldoReservado) > 0) {
+            throw new NegocioException("El valor a retirar supera el saldo reservado disponible.");
         }
-        registrarMovimientoLibroReserva("Pago", valorPago, reserva, cuenta, concepto);
-        registrarMovimientoPagoEnLibroGeneral(cuenta, valorPago, "Pago Reserva: " + concepto);
+        registrarMovimientoLibroReserva("Retiro", valorRetiro, reserva, cuenta, concepto);
+        registrarMovimientoPagoEnLibroGeneral(cuenta, valorRetiro, "Retiro Reserva: " + concepto);
     }
 
     // --- Lógica de Reservas Masivas ---
@@ -117,8 +138,8 @@ public class ReservaService {
         User user = authHelper.getAuthenticatedUser();
         Cuenta cuenta = null;
         if (request.getIdCuenta() != null) {
-             cuenta = cuentaRepository.findByIdAndUser(request.getIdCuenta(), user)
-                .orElseThrow(() -> new NegocioException("La Cuenta de origen con id " + request.getIdCuenta() + " no existe o no pertenece al usuario."));
+            cuenta = cuentaRepository.findByIdAndUser(request.getIdCuenta(), user)
+                    .orElseThrow(() -> new NegocioException("La Cuenta de origen con id " + request.getIdCuenta() + " no existe o no pertenece al usuario."));
         }
 
         List<Reserva> todasLasReservas = reservaRepository.findAllByUser(user);
@@ -151,21 +172,33 @@ public class ReservaService {
     // --- Lógica de Resumen de Reservas ---
     public ResumenReservasDTO getResumenReservas(String tipoFiltroStr) {
         User user = authHelper.getAuthenticatedUser();
+        BigDecimal CUATRO = new BigDecimal("4");
 
-        // --- Lógica de Totales Corregida ---
         BigDecimal totalAhorradoGeneral = libroReservaRepository.sumTotalValorByTipoMovimientoAndUser(user, "Reserva");
-        BigDecimal totalPagadoGeneral = libroReservaRepository.sumTotalValorByTipoMovimientoAndUser(user, "Pago");
+        BigDecimal totalPagadoGeneral = libroReservaRepository.sumTotalValorByTipoMovimientoAndUser(user, "Retiro");
         BigDecimal totalReservadoGeneral = totalAhorradoGeneral.subtract(totalPagadoGeneral);
 
         BigDecimal totalReservasAhorro = libroReservaRepository.sumTotalByTipoReservaAndTipoMovimientoAndUser(user, TipoReserva.AHORRO, "Reserva");
-        BigDecimal totalPagosAhorro = libroReservaRepository.sumTotalByTipoReservaAndTipoMovimientoAndUser(user, TipoReserva.AHORRO, "Pago");
+        BigDecimal totalPagosAhorro = libroReservaRepository.sumTotalByTipoReservaAndTipoMovimientoAndUser(user, TipoReserva.AHORRO, "Retiro");
         BigDecimal totalReservadoAhorros = totalReservasAhorro.subtract(totalPagosAhorro);
 
         BigDecimal totalReservasGastoFijo = libroReservaRepository.sumTotalByTipoReservaAndTipoMovimientoAndUser(user, TipoReserva.GASTO_FIJO, "Reserva");
-        BigDecimal totalPagosGastoFijo = libroReservaRepository.sumTotalByTipoReservaAndTipoMovimientoAndUser(user, TipoReserva.GASTO_FIJO, "Pago");
+        BigDecimal totalPagosGastoFijo = libroReservaRepository.sumTotalByTipoReservaAndTipoMovimientoAndUser(user, TipoReserva.GASTO_FIJO, "Retiro");
         BigDecimal totalReservadoGastoFijos = totalReservasGastoFijo.subtract(totalPagosGastoFijo);
 
-        // --- Lógica de Filtrado y Detalle (Sin Cambios) ---
+        BigDecimal totalReservasInversion = libroReservaRepository.sumTotalByTipoReservaAndTipoMovimientoAndUser(user, TipoReserva.INVERSION, "Reserva");
+        BigDecimal totalPagosInversion = libroReservaRepository.sumTotalByTipoReservaAndTipoMovimientoAndUser(user, TipoReserva.INVERSION, "Retiro");
+        BigDecimal totalReservadoInversiones = totalReservasInversion.subtract(totalPagosInversion);
+
+        BigDecimal pptoSemanalAhorros = reservaRepository.sumValorReservaSemanalByUserAndTipo(user, TipoReserva.AHORRO);
+        BigDecimal pptoSemanalGastosFijos = reservaRepository.sumValorReservaSemanalByUserAndTipo(user, TipoReserva.GASTO_FIJO);
+        BigDecimal pptoSemanalInversiones = reservaRepository.sumValorReservaSemanalByUserAndTipo(user, TipoReserva.INVERSION);
+        BigDecimal pptoSemanalTotal = reservaRepository.sumTotalValorReservaSemanalByUser(user);
+
+        BigDecimal pptoMensualAhorros = pptoSemanalAhorros.multiply(CUATRO);
+        BigDecimal pptoMensualGastosFijos = pptoSemanalGastosFijos.multiply(CUATRO);
+        BigDecimal pptoMensualTotal = pptoSemanalTotal.multiply(CUATRO);
+
         List<Reserva> reservasMaestras = reservaRepository.findAllByUser(user);
         List<Reserva> reservasFiltradas;
         if ("ALL".equalsIgnoreCase(tipoFiltroStr)) {
@@ -184,7 +217,7 @@ public class ReservaService {
         List<ReservaDetalleDTO> detalles = new ArrayList<>();
         for (Reserva reserva : reservasFiltradas) {
             BigDecimal valorAhorrado = libroReservaRepository.sumValorByReservaAndTipo(reserva.getId(), "Reserva");
-            BigDecimal valorGastado = libroReservaRepository.sumValorByReservaAndTipo(reserva.getId(), "Pago");
+            BigDecimal valorGastado = libroReservaRepository.sumValorByReservaAndTipo(reserva.getId(), "Retiro");
             BigDecimal valorReservado = valorAhorrado.subtract(valorGastado);
             BigDecimal valorFaltante = reserva.getValorMeta().subtract(valorAhorrado);
 
@@ -194,6 +227,7 @@ public class ReservaService {
                     .tipo(reserva.getTipo())
                     .valorMeta(reserva.getValorMeta())
                     .valorReservaSemanal(reserva.getValorReservaSemanal())
+                    .fechaMeta(reserva.getFechaMeta())
                     .valorAhorrado(valorAhorrado)
                     .valorGastado(valorGastado)
                     .valorReservado(valorReservado)
@@ -201,15 +235,47 @@ public class ReservaService {
                     .build());
         }
 
-        // --- Construcción del DTO de Respuesta Final ---
         return ResumenReservasDTO.builder()
                 .totalReservado(totalReservadoGeneral)
                 .totalReservadoAhorros(totalReservadoAhorros)
                 .totalReservadoGastoFijos(totalReservadoGastoFijos)
+                .totalReservadoInversiones(totalReservadoInversiones)
+                .pptoSemanalAhorros(pptoSemanalAhorros)
+                .pptoSemanalGastosFijos(pptoSemanalGastosFijos)
+                .pptoSemanalInversiones(pptoSemanalInversiones)
+                .pptoSemanalTotal(pptoSemanalTotal)
+                .pptoMensualAhorros(pptoMensualAhorros)
+                .pptoMensualGastosFijos(pptoMensualGastosFijos)
+                .pptoMensualTotal(pptoMensualTotal)
                 .reservas(detalles)
                 .build();
     }
-    
+
+    // --- Lógica de Movimientos de Reserva ---
+    public Page<MovimientoReservaDTO> consultarMovimientosPorReserva(Long reservaId, int anio, int mes, int page, int size) {
+        User user = authHelper.getAuthenticatedUser();
+        reservaRepository.findByIdAndUser(reservaId, user)
+                .orElseThrow(() -> new NegocioException("La Reserva con id " + reservaId + " no existe o no pertenece al usuario."));
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<LibroReserva> movimientos = libroReservaRepository.findByReservaIdAndFecha(reservaId, anio, mes, pageable);
+
+        return movimientos.map(this::mapToMovimientoReservaDTO);
+    }
+
+    @Transactional
+    public void eliminarMovimientoReserva(Long movimientoId) {
+        User user = authHelper.getAuthenticatedUser();
+        LibroReserva movimiento = libroReservaRepository.findById(movimientoId)
+                .orElseThrow(() -> new NegocioException("El movimiento de reserva con id " + movimientoId + " no existe."));
+
+        if (!movimiento.getReserva().getUser().getId().equals(user.getId())) {
+            throw new NegocioException("No tiene permiso para eliminar este movimiento.");
+        }
+
+        libroReservaRepository.deleteById(movimientoId);
+    }
+
     // --- Métodos de Registro Internos ---
     private void registrarMovimientoLibroReserva(String tipo, BigDecimal valor, Reserva reserva, Cuenta cuenta, String concepto) {
         LibroReserva movimiento = new LibroReserva();
@@ -220,7 +286,7 @@ public class ReservaService {
         movimiento.setConcepto(concepto);
         libroReservaRepository.save(movimiento);
     }
-    
+
     private void registrarMovimientoPagoEnLibroGeneral(Cuenta cuenta, BigDecimal valor, String concepto) {
         LibroGeneral movimientoGeneral = new LibroGeneral();
         if (cuenta.getTipo() == TipoCuenta.CREDITO) {
@@ -232,5 +298,16 @@ public class ReservaService {
         movimientoGeneral.setValor(valor);
         movimientoGeneral.setConcepto(concepto);
         libroGeneralRepository.save(movimientoGeneral);
+    }
+
+    private MovimientoReservaDTO mapToMovimientoReservaDTO(LibroReserva libroReserva) {
+        return MovimientoReservaDTO.builder()
+                .id(libroReserva.getId())
+                .fecha(libroReserva.getFecha())
+                .concepto(libroReserva.getConcepto())
+                .tipoMovimiento(libroReserva.getTipoMovimiento())
+                .valor(libroReserva.getValor())
+                .cuentaDescripcion(libroReserva.getCuenta() != null ? libroReserva.getCuenta().getDescripcion() : null)
+                .build();
     }
 }
