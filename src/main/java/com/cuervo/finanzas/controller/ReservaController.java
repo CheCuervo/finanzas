@@ -1,16 +1,15 @@
 package com.cuervo.finanzas.controller;
 
-import com.cuervo.finanzas.dto.MovimientoReservaRequestDTO;
-import com.cuervo.finanzas.dto.ReservaMasivaRequestDTO;
-import com.cuervo.finanzas.dto.ReservaRequestDTO;
-import com.cuervo.finanzas.dto.ResumenReservasDTO;
+import com.cuervo.finanzas.dto.*;
 import com.cuervo.finanzas.entity.Reserva;
 import com.cuervo.finanzas.service.ReservaService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.YearMonth;
 import java.util.List;
 
 @RestController
@@ -66,5 +65,30 @@ public class ReservaController {
     public ResponseEntity<Void> realizarReservasMasivas(@RequestBody ReservaMasivaRequestDTO request) {
         reservaService.realizarReservasMasivas(request);
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{id}/movimientos")
+    public ResponseEntity<Page<MovimientoReservaDTO>> consultarMovimientos(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) Integer mes,
+            @RequestParam(required = false) Integer anio) {
+
+        YearMonth currentYearMonth = YearMonth.now();
+        int mesAFiltrar = mes != null ? mes : currentYearMonth.getMonthValue();
+        int anioAFiltrar = anio != null ? anio : currentYearMonth.getYear();
+
+        Page<MovimientoReservaDTO> movimientos = reservaService.consultarMovimientosPorReserva(id, anioAFiltrar, mesAFiltrar, page, size);
+        return ResponseEntity.ok(movimientos);
+    }
+
+    /**
+     * Endpoint para eliminar un movimiento específico del libro de reservas.
+     */
+    @DeleteMapping("/movimientos/{movimientoId}")
+    public ResponseEntity<Void> eliminarMovimientoReserva(@PathVariable Long movimientoId) {
+        reservaService.eliminarMovimientoReserva(movimientoId);
+        return ResponseEntity.noContent().build();
     }
 }

@@ -1,14 +1,18 @@
 package com.cuervo.finanzas.controller;
 
+import com.cuervo.finanzas.dto.CuentaBalanceDTO;
 import com.cuervo.finanzas.dto.CuentaRequestDTO;
+import com.cuervo.finanzas.dto.MovimientoDTO;
 import com.cuervo.finanzas.dto.ReajusteCuentaRequestDTO;
 import com.cuervo.finanzas.entity.Cuenta;
 import com.cuervo.finanzas.service.CuentaService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.YearMonth;
 import java.util.List;
 
 @RestController
@@ -25,12 +29,12 @@ public class CuentaController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Cuenta>> consultarCuentas() {
+    public ResponseEntity<List<CuentaBalanceDTO>> consultarCuentas() {
         return ResponseEntity.ok(cuentaService.consultarCuentas());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Cuenta> consultarCuentaPorId(@PathVariable Long id) {
+    public ResponseEntity<CuentaBalanceDTO> consultarCuentaPorId(@PathVariable Long id) {
         return ResponseEntity.ok(cuentaService.consultarCuentaPorId(id));
     }
 
@@ -49,5 +53,22 @@ public class CuentaController {
     public ResponseEntity<Void> reajustarCuenta(@RequestBody ReajusteCuentaRequestDTO request) {
         cuentaService.reajustarCuenta(request);
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{id}/movimientos")
+    public ResponseEntity<Page<MovimientoDTO>> consultarMovimientos(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) Integer mes,
+            @RequestParam(required = false) Integer anio) {
+
+        // Si no se provee mes y año, se usan los del mes en curso.
+        YearMonth currentYearMonth = YearMonth.now();
+        int mesAFiltrar = mes != null ? mes : currentYearMonth.getMonthValue();
+        int anioAFiltrar = anio != null ? anio : currentYearMonth.getYear();
+
+        Page<MovimientoDTO> movimientos = cuentaService.consultarMovimientosPorCuenta(id, anioAFiltrar, mesAFiltrar, page, size);
+        return ResponseEntity.ok(movimientos);
     }
 }

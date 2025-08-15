@@ -95,4 +95,18 @@ public class FinanzasService {
         movimiento.setTipoMovimiento(tipo);
         libroGeneralRepository.save(movimiento);
     }
+
+    @Transactional
+    public void eliminarMovimiento(Long movimientoId) {
+        User user = authHelper.getAuthenticatedUser();
+        LibroGeneral movimiento = libroGeneralRepository.findById(movimientoId)
+                .orElseThrow(() -> new NegocioException("El movimiento con id " + movimientoId + " no existe."));
+
+        // Verificación de seguridad: Asegura que el movimiento pertenezca al usuario logueado.
+        if (!movimiento.getCuenta().getUser().getId().equals(user.getId())) {
+            throw new NegocioException("No tiene permiso para eliminar este movimiento.");
+        }
+
+        libroGeneralRepository.deleteById(movimientoId);
+    }
 }

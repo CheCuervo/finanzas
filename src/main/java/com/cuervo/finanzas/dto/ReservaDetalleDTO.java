@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Data
 @Builder
@@ -18,6 +19,7 @@ public class ReservaDetalleDTO {
     private TipoReserva tipo;
     private BigDecimal valorMeta;
     private BigDecimal valorReservaSemanal;
+    private LocalDate fechaMeta;
     private BigDecimal valorAhorrado;
     private BigDecimal valorGastado;
     private BigDecimal valorReservado;
