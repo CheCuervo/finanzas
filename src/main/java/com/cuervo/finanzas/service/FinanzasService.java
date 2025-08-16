@@ -54,11 +54,11 @@ public class FinanzasService {
         BigDecimal ingresosCredito = libroGeneralRepository.sumValorByTipoCuentaAndTipoMovimientoAndUser(user, TipoCuenta.CREDITO, TipoMovimiento.INGRESO);
         BigDecimal egresosCredito = libroGeneralRepository.sumValorByTipoCuentaAndTipoMovimientoAndUser(user, TipoCuenta.CREDITO, TipoMovimiento.EGRESO);
         BigDecimal totalReservas = libroReservaRepository.sumTotalValorByTipoMovimientoAndUser(user, "Reserva");
-        BigDecimal totalPagos = libroReservaRepository.sumTotalValorByTipoMovimientoAndUser(user, "Pago");
+        BigDecimal totalRetiros = libroReservaRepository.sumTotalValorByTipoMovimientoAndUser(user, "Retiro");
 
         // --- 2. Calcular Nuevos Campos ---
         BigDecimal dineroTotal = (ingresosAhorro.add(ingresosInversion)).subtract(egresosAhorro.add(egresosInversion));
-        BigDecimal balanceNetoReservas = totalReservas.subtract(totalPagos);
+        BigDecimal balanceNetoReservas = totalReservas.subtract(totalRetiros);
         BigDecimal balanceCredito = ingresosCredito.subtract(egresosCredito);
         BigDecimal dineroDisponible = dineroTotal.subtract(balanceCredito).subtract(balanceNetoReservas);
         BigDecimal dineroReservado = balanceNetoReservas.add(balanceCredito);
