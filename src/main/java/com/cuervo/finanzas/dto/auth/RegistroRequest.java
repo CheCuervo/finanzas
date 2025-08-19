@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Data
 @Builder
 @AllArgsConstructor
@@ -14,4 +16,5 @@ public class RegistroRequest {
     private String apellido;
     private String email;
     private String password;
+    private BigDecimal ingresoSemanal; // Nuevo campo obligatorio
 }

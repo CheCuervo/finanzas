@@ -6,10 +6,7 @@ import com.cuervo.finanzas.entity.enums.TipoCuenta;
 import com.cuervo.finanzas.entity.enums.TipoMovimiento;
 import com.cuervo.finanzas.entity.enums.TipoReserva;
 import com.cuervo.finanzas.exception.NegocioException;
-import com.cuervo.finanzas.repository.CuentaRepository;
-import com.cuervo.finanzas.repository.LibroGeneralRepository;
-import com.cuervo.finanzas.repository.LibroReservaRepository;
-import com.cuervo.finanzas.repository.ReservaRepository;
+import com.cuervo.finanzas.repository.*;
 import com.cuervo.finanzas.service.auth.AuthHelper;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -34,10 +31,29 @@ public class ReservaService {
     private final CuentaRepository cuentaRepository;
     private final LibroGeneralRepository libroGeneralRepository;
     private final AuthHelper authHelper;
+    private final ConfigPresupuestoRepository configPresupuestoRepository;
 
     // --- CREATE ---
+    @Transactional
     public Reserva crearReserva(ReservaRequestDTO request) {
         User user = authHelper.getAuthenticatedUser();
+
+        // --- Nueva Validación ---
+        ConfigPresupuesto config = configPresupuestoRepository.findByUser(user)
+                .orElseThrow(() -> new NegocioException("No se ha configurado un presupuesto. Por favor, configure su ingreso semanal."));
+
+        BigDecimal ingresoSemanal = config.getIngresoSemanal();
+        if (ingresoSemanal == null || ingresoSemanal.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new NegocioException("El ingreso semanal debe ser mayor a cero para crear reservas.");
+        }
+
+        BigDecimal totalReservasSemanalesActual = reservaRepository.sumTotalValorReservaSemanalByUser(user);
+        BigDecimal nuevoTotal = totalReservasSemanalesActual.add(request.getValorReservaSemanal());
+
+        if (nuevoTotal.compareTo(ingresoSemanal) > 0) {
+            throw new NegocioException("La suma de las cuotas semanales (" + nuevoTotal + ") no puede superar tu ingreso semanal (" + ingresoSemanal + ").");
+        }
+
         Reserva nuevaReserva = new Reserva();
         nuevaReserva.setConcepto(request.getConcepto());
         nuevaReserva.setValorMeta(request.getValorMeta());
@@ -55,6 +71,45 @@ public class ReservaService {
         return reservaRepository.save(nuevaReserva);
     }
 
+    // --- UPDATE ---
+    @Transactional
+    public Reserva editarReserva(Long id, ReservaRequestDTO request) {
+        User user = authHelper.getAuthenticatedUser();
+        Reserva reserva = consultarReservaPorId(id);
+
+        // --- Nueva Validación ---
+        ConfigPresupuesto config = configPresupuestoRepository.findByUser(user)
+                .orElseThrow(() -> new NegocioException("No se ha configurado un presupuesto."));
+
+        BigDecimal ingresoSemanal = config.getIngresoSemanal();
+        if (ingresoSemanal == null || ingresoSemanal.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new NegocioException("El ingreso semanal debe ser mayor a cero para editar reservas.");
+        }
+
+        BigDecimal totalReservasSemanalesActual = reservaRepository.sumTotalValorReservaSemanalByUser(user);
+        BigDecimal nuevoTotal = totalReservasSemanalesActual
+                .subtract(reserva.getValorReservaSemanal()) // Resta el valor antiguo
+                .add(request.getValorReservaSemanal());   // Suma el valor nuevo
+
+        if (nuevoTotal.compareTo(ingresoSemanal) > 0) {
+            throw new NegocioException("La suma de las cuotas semanales (" + nuevoTotal + ") no puede superar tu ingreso semanal (" + ingresoSemanal + ").");
+        }
+
+        reserva.setConcepto(request.getConcepto());
+        reserva.setValorMeta(request.getValorMeta());
+        reserva.setTipo(request.getTipo());
+        reserva.setValorReservaSemanal(request.getValorReservaSemanal());
+
+        if (request.getTipo() == TipoReserva.GASTO_FIJO_MES) {
+            LocalDate lastDayOfMonth = LocalDate.now().with(TemporalAdjusters.lastDayOfMonth());
+            reserva.setFechaMeta(lastDayOfMonth);
+        } else {
+            reserva.setFechaMeta(request.getFechaMeta());
+        }
+
+        return reservaRepository.save(reserva);
+    }
+
     // --- READ ---
     public List<Reserva> consultarReservas() {
         User user = authHelper.getAuthenticatedUser();
@@ -67,23 +122,7 @@ public class ReservaService {
                 .orElseThrow(() -> new NegocioException("La Reserva con id " + id + " no existe o no pertenece al usuario."));
     }
 
-    // --- UPDATE ---
-    public Reserva editarReserva(Long id, ReservaRequestDTO request) {
-        Reserva reserva = consultarReservaPorId(id);
-        reserva.setConcepto(request.getConcepto());
-        reserva.setValorMeta(request.getValorMeta());
-        reserva.setTipo(request.getTipo());
-        reserva.setValorReservaSemanal(request.getValorReservaSemanal());
 
-        if (request.getTipo() == TipoReserva.GASTO_FIJO) {
-            LocalDate lastDayOfMonth = LocalDate.now().with(TemporalAdjusters.lastDayOfMonth());
-            reserva.setFechaMeta(lastDayOfMonth);
-        } else {
-            reserva.setFechaMeta(request.getFechaMeta());
-        }
-
-        return reservaRepository.save(reserva);
-    }
 
     // --- DELETE ---
     public void eliminarReserva(Long id) {

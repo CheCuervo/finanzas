@@ -31,4 +31,7 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
      */
     @Query("SELECT COALESCE(SUM(r.valorReservaSemanal), 0) FROM Reserva r WHERE r.user = :user")
     BigDecimal sumTotalValorReservaSemanalByUser(@Param("user") User user);
+
+    @Query("SELECT COALESCE(SUM(r.valorReservaSemanal), 0) FROM Reserva r WHERE r.user = :user AND r.tipo IN (com.cuervo.finanzas.entity.enums.TipoReserva.GASTO_FIJO, com.cuervo.finanzas.entity.enums.TipoReserva.GASTO_FIJO_MES)")
+    BigDecimal sumValorReservaSemanalForGastos(@Param("user") User user);
 }
