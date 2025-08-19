@@ -174,6 +174,7 @@ public class ReservaService {
         User user = authHelper.getAuthenticatedUser();
         BigDecimal CUATRO = new BigDecimal("4");
 
+        // --- Cálculos de Reservas ---
         BigDecimal totalAhorradoGeneral = libroReservaRepository.sumTotalValorByTipoMovimientoAndUser(user, "Reserva");
         BigDecimal totalPagadoGeneral = libroReservaRepository.sumTotalValorByTipoMovimientoAndUser(user, "Retiro");
         BigDecimal totalReservadoGeneral = totalAhorradoGeneral.subtract(totalPagadoGeneral);
@@ -190,32 +191,25 @@ public class ReservaService {
         BigDecimal totalPagosInversion = libroReservaRepository.sumTotalByTipoReservaAndTipoMovimientoAndUser(user, TipoReserva.INVERSION, "Retiro");
         BigDecimal totalReservadoInversiones = totalReservasInversion.subtract(totalPagosInversion);
 
+        BigDecimal totalReservasGFMes = libroReservaRepository.sumTotalByTipoReservaAndTipoMovimientoAndUser(user, TipoReserva.GASTO_FIJO_MES, "Reserva");
+        BigDecimal totalPagosGFMes = libroReservaRepository.sumTotalByTipoReservaAndTipoMovimientoAndUser(user, TipoReserva.GASTO_FIJO_MES, "Retiro");
+        BigDecimal totalReservadoGFMes = totalReservasGFMes.subtract(totalPagosGFMes);
+
+        // --- Cálculos de Presupuesto ---
         BigDecimal pptoSemanalAhorros = reservaRepository.sumValorReservaSemanalByUserAndTipo(user, TipoReserva.AHORRO);
         BigDecimal pptoSemanalGastosFijos = reservaRepository.sumValorReservaSemanalByUserAndTipo(user, TipoReserva.GASTO_FIJO);
         BigDecimal pptoSemanalInversiones = reservaRepository.sumValorReservaSemanalByUserAndTipo(user, TipoReserva.INVERSION);
+        BigDecimal pptoSemanalGFMes = reservaRepository.sumValorReservaSemanalByUserAndTipo(user, TipoReserva.GASTO_FIJO_MES);
         BigDecimal pptoSemanalTotal = reservaRepository.sumTotalValorReservaSemanalByUser(user);
 
         BigDecimal pptoMensualAhorros = pptoSemanalAhorros.multiply(CUATRO);
         BigDecimal pptoMensualGastosFijos = pptoSemanalGastosFijos.multiply(CUATRO);
         BigDecimal pptoMensualTotal = pptoSemanalTotal.multiply(CUATRO);
 
+        // --- Lógica de Filtrado y Detalle ---
         List<Reserva> reservasMaestras = reservaRepository.findAllByUser(user);
-        List<Reserva> reservasFiltradas;
-        if ("ALL".equalsIgnoreCase(tipoFiltroStr)) {
-            reservasFiltradas = reservasMaestras;
-        } else {
-            try {
-                TipoReserva tipoFiltro = TipoReserva.valueOf(tipoFiltroStr.toUpperCase());
-                reservasFiltradas = reservasMaestras.stream()
-                        .filter(r -> r.getTipo() == tipoFiltro)
-                        .collect(Collectors.toList());
-            } catch (IllegalArgumentException e) {
-                throw new NegocioException("Tipo de filtro no válido. Use AHORRO, GASTO_FIJO o ALL.");
-            }
-        }
-
         List<ReservaDetalleDTO> detalles = new ArrayList<>();
-        for (Reserva reserva : reservasFiltradas) {
+        for (Reserva reserva : reservasMaestras) {
             BigDecimal valorAhorrado = libroReservaRepository.sumValorByReservaAndTipo(reserva.getId(), "Reserva");
             BigDecimal valorGastado = libroReservaRepository.sumValorByReservaAndTipo(reserva.getId(), "Retiro");
             BigDecimal valorReservado = valorAhorrado.subtract(valorGastado);
@@ -235,14 +229,17 @@ public class ReservaService {
                     .build());
         }
 
+        // --- Construcción del DTO de Respuesta Final ---
         return ResumenReservasDTO.builder()
                 .totalReservado(totalReservadoGeneral)
                 .totalReservadoAhorros(totalReservadoAhorros)
                 .totalReservadoGastoFijos(totalReservadoGastoFijos)
                 .totalReservadoInversiones(totalReservadoInversiones)
+                .totalReservadoGFMes(totalReservadoGFMes)
                 .pptoSemanalAhorros(pptoSemanalAhorros)
                 .pptoSemanalGastosFijos(pptoSemanalGastosFijos)
                 .pptoSemanalInversiones(pptoSemanalInversiones)
+                .pptoSemanalGFMes(pptoSemanalGFMes)
                 .pptoSemanalTotal(pptoSemanalTotal)
                 .pptoMensualAhorros(pptoMensualAhorros)
                 .pptoMensualGastosFijos(pptoMensualGastosFijos)

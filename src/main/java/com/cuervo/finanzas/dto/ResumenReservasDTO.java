@@ -16,11 +16,13 @@ public class ResumenReservasDTO {
     private BigDecimal totalReservado;
     private BigDecimal totalReservadoAhorros;
     private BigDecimal totalReservadoGastoFijos;
-    private BigDecimal totalReservadoInversiones; // Nuevo campo
-    
+    private BigDecimal totalReservadoInversiones;
+    private BigDecimal totalReservadoGFMes; // Nuevo campo
+
     private BigDecimal pptoSemanalAhorros;
     private BigDecimal pptoSemanalGastosFijos;
-    private BigDecimal pptoSemanalInversiones; // Nuevo campo
+    private BigDecimal pptoSemanalInversiones;
+    private BigDecimal pptoSemanalGFMes; // Nuevo campo
     private BigDecimal pptoSemanalTotal;
     
     private BigDecimal pptoMensualAhorros;
