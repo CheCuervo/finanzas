@@ -44,7 +44,7 @@ public class ReservaService {
         nuevaReserva.setTipo(request.getTipo());
         nuevaReserva.setValorReservaSemanal(request.getValorReservaSemanal());
 
-        if (request.getTipo() == TipoReserva.GASTO_FIJO) {
+        if (request.getTipo() == TipoReserva.GASTO_FIJO_MES) {
             LocalDate lastDayOfMonth = LocalDate.now().with(TemporalAdjusters.lastDayOfMonth());
             nuevaReserva.setFechaMeta(lastDayOfMonth);
         } else {
