@@ -24,4 +24,8 @@ public class ReservaDetalleDTO {
     private BigDecimal valorGastado;
     private BigDecimal valorReservado;
     private BigDecimal valorFaltante;
+
+    // --- Nuevos Campos ---
+    private LocalDate fechaMetaReal;
+    private BigDecimal cuotaSugerida;
 }

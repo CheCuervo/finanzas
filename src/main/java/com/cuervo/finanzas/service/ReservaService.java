@@ -16,7 +16,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
@@ -254,6 +256,24 @@ public class ReservaService {
             BigDecimal valorReservado = valorAhorrado.subtract(valorGastado);
             BigDecimal valorFaltante = reserva.getValorMeta().subtract(valorAhorrado);
 
+            LocalDate fechaMetaReal = null;
+            if (reserva.getValorReservaSemanal() != null && reserva.getValorReservaSemanal().compareTo(BigDecimal.ZERO) > 0) {
+                if (valorFaltante.compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal semanasParaMeta = valorFaltante.divide(reserva.getValorReservaSemanal(), 0, RoundingMode.CEILING);
+                    fechaMetaReal = LocalDate.now().plusWeeks(semanasParaMeta.longValue());
+                } else {
+                    fechaMetaReal = LocalDate.now(); // Si ya se cumplió la meta
+                }
+            }
+
+            BigDecimal cuotaSugerida = null;
+            if (reserva.getFechaMeta() != null && reserva.getFechaMeta().isAfter(LocalDate.now())) {
+                long semanasRestantes = ChronoUnit.WEEKS.between(LocalDate.now(), reserva.getFechaMeta());
+                if (semanasRestantes > 0 && valorFaltante.compareTo(BigDecimal.ZERO) > 0) {
+                    cuotaSugerida = valorFaltante.divide(new BigDecimal(semanasRestantes), 2, RoundingMode.HALF_UP);
+                }
+            }
+
             detalles.add(ReservaDetalleDTO.builder()
                     .id(reserva.getId())
                     .concepto(reserva.getConcepto())
@@ -265,6 +285,8 @@ public class ReservaService {
                     .valorGastado(valorGastado)
                     .valorReservado(valorReservado)
                     .valorFaltante(valorFaltante)
+                            .cuotaSugerida(cuotaSugerida)
+                            .fechaMetaReal(fechaMetaReal)
                     .build());
         }
 
