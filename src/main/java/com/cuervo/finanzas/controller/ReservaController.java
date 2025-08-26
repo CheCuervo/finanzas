@@ -91,4 +91,13 @@ public class ReservaController {
         reservaService.eliminarMovimientoReserva(movimientoId);
         return ResponseEntity.noContent().build();
     }
+
+    /**
+     * Nuevo endpoint para reiniciar los movimientos de gastos fijos del mes anterior.
+     */
+    @PostMapping("/reiniciar-mes")
+    public ResponseEntity<Void> reiniciarMes() {
+        reservaService.reiniciarMesGastosFijos();
+        return ResponseEntity.ok().build();
+    }
 }

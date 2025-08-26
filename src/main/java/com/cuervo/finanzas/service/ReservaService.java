@@ -18,10 +18,13 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.TextStyle;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
@@ -127,11 +130,23 @@ public class ReservaService {
 
 
     // --- DELETE ---
+    @Transactional
     public void eliminarReserva(Long id) {
-        consultarReservaPorId(id); // Valida pertenencia
-        if (libroReservaRepository.existsByReservaId(id)) {
-            throw new NegocioException("No se puede eliminar la reserva con id " + id + " porque tiene movimientos asociados.");
+        // Valida que la reserva exista y pertenezca al usuario
+        consultarReservaPorId(id);
+
+        // Calucular el balance de movimientos de la reserva
+        BigDecimal totalIngresos = libroReservaRepository.sumValorByReservaAndTipo(id, "Reserva");
+        BigDecimal totalEgresos = libroReservaRepository.sumValorByReservaAndTipo(id, "Retiro");
+        BigDecimal balance = totalIngresos.subtract(totalEgresos);
+
+        // Si el balance es mayor a cero, retornar una excepción
+        if (balance.compareTo(BigDecimal.ZERO) > 0) {
+            throw new NegocioException("No se puede eliminar la reserva con id " + id + " ya que el valor ahorrado (" + balance + ") debe ser igual a 0.");
         }
+
+        // Si el balance es cero, proceder con la eliminación
+        libroReservaRepository.deleteAllByReservaId(id);
         reservaRepository.deleteById(id);
     }
 
@@ -333,6 +348,49 @@ public class ReservaService {
 
         libroReservaRepository.deleteById(movimientoId);
     }
+
+    /**
+     * Resetea los movimientos mensuales de GASTO_FIJO_MES.
+     * Calcula el saldo sobrante del mes anterior, crea una nueva reserva con ese saldo
+     * y elimina los movimientos del mes anterior.
+     */
+    @Transactional
+    public void reiniciarMesGastosFijos() {
+        User user = authHelper.getAuthenticatedUser();
+        YearMonth mesAnterior = YearMonth.now().minusMonths(1);
+        int anioAnterior = mesAnterior.getYear();
+        int mesAnteriorNumero = mesAnterior.getMonthValue();
+        String mesAnteriorNombre = mesAnterior.getMonth().getDisplayName(TextStyle.FULL, new Locale("es", "ES"));
+
+        // 1. Calcular el saldo del mes anterior
+        BigDecimal totalIngresos = libroReservaRepository.sumValorByTipoReservaAndMes(user, TipoReserva.GASTO_FIJO_MES, "Reserva", anioAnterior, mesAnteriorNumero);
+        BigDecimal totalEgresos = libroReservaRepository.sumValorByTipoReservaAndMes(user, TipoReserva.GASTO_FIJO_MES, "Retiro", anioAnterior, mesAnteriorNumero);
+        BigDecimal saldoMesAnterior = totalIngresos.subtract(totalEgresos);
+
+        // 2. Si el saldo es positivo, crear una nueva reserva y movimiento
+        if (saldoMesAnterior.compareTo(BigDecimal.ZERO) > 0) {
+            // Crear la nueva reserva
+            Reserva nuevaReserva = new Reserva();
+            nuevaReserva.setConcepto("Gastos fijos Mes " + mesAnteriorNombre + " " + anioAnterior);
+            nuevaReserva.setValorMeta(saldoMesAnterior); // La meta es el saldo del mes anterior
+            nuevaReserva.setTipo(TipoReserva.GASTO_FIJO_MES);
+            nuevaReserva.setValorReservaSemanal(BigDecimal.ZERO); // No tiene cuota semanal
+            nuevaReserva.setUser(user);
+            reservaRepository.save(nuevaReserva);
+
+            // Crear el movimiento de ingreso
+            LibroReserva movimiento = new LibroReserva();
+            movimiento.setTipoMovimiento("Reserva");
+            movimiento.setValor(saldoMesAnterior);
+            movimiento.setReserva(nuevaReserva);
+            movimiento.setConcepto("Saldo sobrante del mes anterior");
+            libroReservaRepository.save(movimiento);
+        }
+
+        // 3. Eliminar todos los movimientos de GASTO_FIJO_MES del mes anterior
+        libroReservaRepository.deleteByTipoReservaAndMes(user, TipoReserva.GASTO_FIJO_MES, anioAnterior, mesAnteriorNumero);
+    }
+
 
     // --- Métodos de Registro Internos ---
     private void registrarMovimientoLibroReserva(String tipo, BigDecimal valor, Reserva reserva, Cuenta cuenta, String concepto) {

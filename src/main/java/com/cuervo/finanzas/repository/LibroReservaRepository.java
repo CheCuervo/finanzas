@@ -3,9 +3,11 @@ package com.cuervo.finanzas.repository;
 import com.cuervo.finanzas.entity.LibroReserva;
 import com.cuervo.finanzas.entity.User;
 import com.cuervo.finanzas.entity.enums.TipoReserva;
+import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -38,4 +40,38 @@ public interface LibroReservaRepository extends JpaRepository<LibroReserva, Long
                                                @Param("anio") int anio,
                                                @Param("mes") int mes,
                                                Pageable pageable);
+
+    /**
+     * Suma los valores de los movimientos de un tipo de reserva y tipo de movimiento
+     * específicos para un mes y año dados.
+     */
+    @Query("SELECT COALESCE(SUM(lr.valor), 0) FROM LibroReserva lr " +
+            "WHERE lr.reserva.user = :user AND lr.reserva.tipo = :tipoReserva " +
+            "AND lr.tipoMovimiento = :tipoMovimiento AND EXTRACT(YEAR FROM lr.fecha) = :anio " +
+            "AND EXTRACT(MONTH FROM lr.fecha) = :mes")
+    BigDecimal sumValorByTipoReservaAndMes(@Param("user") User user,
+                                           @Param("tipoReserva") TipoReserva tipoReserva,
+                                           @Param("tipoMovimiento") String tipoMovimiento,
+                                           @Param("anio") int anio,
+                                           @Param("mes") int mes);
+
+
+    /**
+     * Elimina todos los movimientos de reserva de un tipo específico para un mes y año dados.
+            */
+    @Modifying
+    @Query("DELETE FROM LibroReserva lr WHERE lr.reserva.user = :user AND lr.reserva.tipo = :tipoReserva " +
+            "AND EXTRACT(YEAR FROM lr.fecha) = :anio AND EXTRACT(MONTH FROM lr.fecha) = :mes")
+    void deleteByTipoReservaAndMes(@Param("user") User user,
+                                   @Param("tipoReserva") TipoReserva tipoReserva,
+                                   @Param("anio") int anio,
+                                   @Param("mes") int mes);
+
+    /**
+     * Elimina todos los movimientos de una reserva específica.
+     */
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM LibroReserva lr WHERE lr.reserva.id = :reservaId")
+    void deleteAllByReservaId(@Param("reservaId") Long reservaId);
 }
