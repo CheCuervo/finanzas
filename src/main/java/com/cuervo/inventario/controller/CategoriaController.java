@@ -9,6 +9,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/inventario/categorias")
 @RequiredArgsConstructor
@@ -20,5 +22,10 @@ public class CategoriaController {
     public ResponseEntity<CategoriaResponseDTO> crearCategoria(@Valid @RequestBody CategoriaRequestDTO requestDTO) {
         CategoriaResponseDTO nuevaCategoria = categoriaService.crearCategoria(requestDTO);
         return new ResponseEntity<>(nuevaCategoria, HttpStatus.CREATED);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<CategoriaResponseDTO>> obtenerCategorias() {
+        return ResponseEntity.ok(categoriaService.obtenerCategorias());
     }
 }

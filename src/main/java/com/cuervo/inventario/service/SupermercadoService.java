@@ -11,6 +11,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
 public class SupermercadoService {
@@ -49,5 +52,17 @@ public class SupermercadoService {
         responseDTO.setActivo(supermercadoGuardado.getActivo());
 
         return responseDTO;
+    }
+
+    @Transactional(readOnly = true)
+    public List<SupermercadoResponseDTO> obtenerSupermercados() {
+        return supermercadoRepository.findByActivoTrue().stream().map(supermercado -> {
+            SupermercadoResponseDTO dto = new SupermercadoResponseDTO();
+            dto.setId(supermercado.getId());
+            dto.setNombre(supermercado.getNombre());
+            dto.setUbicacion(supermercado.getUbicacion());
+            dto.setActivo(supermercado.getActivo());
+            return dto;
+        }).collect(Collectors.toList());
     }
 }

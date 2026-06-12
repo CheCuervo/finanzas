@@ -11,6 +11,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
 public class CategoriaService {
@@ -49,5 +52,17 @@ public class CategoriaService {
         responseDTO.setActivo(categoriaGuardada.getActivo());
 
         return responseDTO;
+    }
+
+    @Transactional(readOnly = true)
+    public List<CategoriaResponseDTO> obtenerCategorias() {
+        return categoriaRepository.findAll().stream().map(cat -> {
+            CategoriaResponseDTO dto = new CategoriaResponseDTO();
+            dto.setId(cat.getId());
+            dto.setNombre(cat.getNombre());
+            dto.setDescripcion(cat.getDescripcion());
+            dto.setActivo(cat.getActivo());
+            return dto;
+        }).collect(Collectors.toList());
     }
 }
