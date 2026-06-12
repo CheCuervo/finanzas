@@ -4,7 +4,7 @@ FROM eclipse-temurin:21-jdk AS builder
 
 # --- CORRECCIÓN ---
 # La imagen base usa 'microdnf'. El paquete que contiene 'xargs' es 'findutils'.
-RUN microdnf install -y findutils
+RUN apt-get update && apt-get install -y findutils
 
 # Establecemos el directorio de trabajo.
 WORKDIR /app
