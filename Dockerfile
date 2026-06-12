@@ -1,6 +1,6 @@
 # --- Etapa 1: Construcción (Build Stage) ---
 # Usamos una imagen de OpenJDK 21 completa que incluye Gradle para construir el proyecto.
-FROM openjdk:21-jdk as builder
+FROM eclipse-temurin:21-jdk AS builder
 
 # --- CORRECCIÓN ---
 # La imagen base usa 'microdnf'. El paquete que contiene 'xargs' es 'findutils'.
@@ -25,7 +25,7 @@ RUN ./gradlew build -x test --no-daemon --stacktrace
 
 # --- Etapa 2: Ejecución (Runtime Stage) ---
 # Usamos una imagen 'slim' mucho más ligera para la ejecución, lo que es más eficiente.
-FROM openjdk:21-jdk-slim
+FROM eclipse-temurin:21-jre-jammy
 
 # Establecemos el directorio de trabajo.
 WORKDIR /app
