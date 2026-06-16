@@ -18,15 +18,12 @@ public class Producto {
     @Column(nullable = false, length = 100)
     private String nombre;
 
-    // --- MANEJO DE STOCK Y RECORRIDO ---
-
     @Column(nullable = false, name = "stock_ideal")
     private Double stockIdeal; 
 
     @Column(nullable = false, name = "stock_actual")
     private Double stockActual = 0.0; 
 
-    // 👇 NUEVO CAMPO AGREGADO
     @Column(nullable = false, name = "stock_minimo_sugerido", columnDefinition = "float default 0.0")
     private Double stockMinimoSugerido = 0.0;
 
@@ -35,7 +32,11 @@ public class Producto {
     private UnidadMedida unidadMedida; 
 
     @Column(nullable = false, name = "orden_ubicacion")
-    private Integer ordenUbicacion = 0; 
+    private Integer ordenUbicacion;
+
+    // 🔥 NUEVA COLUMNA
+    @Column(name = "orden_supermercado")
+    private Integer ordenSupermercado;
 
     @Column(nullable = false)
     private Boolean activo = true;
@@ -43,7 +44,6 @@ public class Producto {
     @Column(nullable = false, columnDefinition = "boolean default true")
     private Boolean obligatorio = true;
 
-    // --- RELACIONES CON OTRAS TABLAS ---
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "categoria_id", nullable = false)

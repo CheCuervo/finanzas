@@ -11,6 +11,7 @@ import com.cuervo.inventario.repository.RevisionRepository;
 import com.cuervo.inventario.repository.RevisionItemRepository;
 import com.cuervo.inventario.repository.ProductoRepository;
 import com.cuervo.inventario.repository.UsuarioRepository;
+import com.cuervo.inventario.handler.NotificationWebSocketHandler; // 🔥 Sincronización en tiempo real
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -29,32 +30,29 @@ public class RevisionService {
     private final ProductoRepository productoRepository;
     private final UsuarioRepository usuarioRepository;
     private final ListaMercadoService listaMercadoService;
+    private final NotificationWebSocketHandler notificationWebSocketHandler; // 🔥 WebSocket inyectado
 
     @Transactional
     public Revision obtenerOCrearRevisionActiva() {
         Usuario usuario = obtenerUsuarioAutenticado();
 
-        // 1. Validar si ya existe una revisión abierta para este usuario
         return revisionRepository.findByUsuarioAndEstado(usuario, EstadoRevision.ACTIVA)
                 .orElseGet(() -> {
-                    // 2. Si no existe, creamos una nueva sesión de auditoría
                     Revision nuevaRevision = new Revision();
                     nuevaRevision.setFechaInicio(LocalDateTime.now());
                     nuevaRevision.setEstado(EstadoRevision.ACTIVA);
                     nuevaRevision.setUsuario(usuario);
                     Revision revisionGuardada = revisionRepository.save(nuevaRevision);
 
-                    // 3. Buscamos todos los productos activos del usuario ordenados por ubicación
                     List<Producto> productosActivos = productoRepository
                             .findByUsuarioIdAndActivoTrueOrderByOrdenUbicacionAsc(usuario.getId());
 
-                    // 4. Clonamos los productos en la hoja de progreso de la revisión
                     List<RevisionItem> itemsParaRevisar = new ArrayList<>();
                     for (Producto prod : productosActivos) {
                         RevisionItem item = new RevisionItem();
                         item.setRevision(revisionGuardada);
                         item.setProducto(prod);
-                        item.setRevisado(false); // Inician todos pendientes (sin marcar)
+                        item.setRevisado(false);
                         itemsParaRevisar.add(item);
                     }
 
@@ -75,15 +73,16 @@ public class RevisionService {
 
         if (!existe) {
             if (stockActual == null) {
-                throw new NegocioException("El stock actual es obligatorio para reponer el producto.");
+                throw new NegocioException("La cantidad es obligatoria.");
             }
-            item.setExistenciaActual(stockActual.intValue());
 
-            RevisionProductoRequestDTO requestDTO = new RevisionProductoRequestDTO();
-            requestDTO.setProductoId(item.getProducto().getId());
-            requestDTO.setStockActual(stockActual);
+            item.setExistenciaActual(item.getProducto().getStockActual() != null ? item.getProducto().getStockActual().intValue() : 0);
 
-            listaMercadoService.registrarRevisionProducto(requestDTO);
+            listaMercadoService.registrarRevisionProductoConCantidadExacta(
+                    item.getProducto().getId(),
+                    item.getProducto().getStockActual(),
+                    stockActual
+            );
         } else {
             Producto producto = item.getProducto();
             item.setExistenciaActual(producto.getStockIdeal().intValue());
@@ -101,6 +100,12 @@ public class RevisionService {
             revision.setEstado(EstadoRevision.FINALIZADA);
             revisionRepository.save(revision);
         }
+
+        // 🔥 NOTIFICACIONES WEBSOCKET BIDIRECCIONALES
+        notificationWebSocketHandler.broadcast("refresh-revision");
+        if (!existe) {
+            notificationWebSocketHandler.broadcast("refresh-lista");
+        }
     }
 
     @Transactional
@@ -109,18 +114,19 @@ public class RevisionService {
             return;
         }
 
-        // Recorremos los IDs enviados por el frente y reasignamos el orden correlativamente
         for (int i = 0; i < itemIds.size(); i++) {
             Long itemId = itemIds.get(i);
 
             RevisionItem item = revisionItemRepository.findById(itemId)
-                    .orElseThrow(() -> new com.cuervo.finanzas.exception.NegocioException("Item de revisión no encontrado"));
+                    .orElseThrow(() -> new NegocioException("Item de revisión no encontrado"));
 
             Producto producto = item.getProducto();
-            // Asignamos el nuevo orden consecutivo (1, 2, 3...)
             producto.setOrdenUbicacion(i + 1);
             productoRepository.save(producto);
         }
+
+        // Refresca el orden visual del Drag and Drop en otros celulares al instante
+        notificationWebSocketHandler.broadcast("refresh-revision");
     }
 
     @Transactional
@@ -154,7 +160,25 @@ public class RevisionService {
         revisionItemRepository.saveAll(itemsParaRevisar);
         revisionGuardada.setItems(itemsParaRevisar);
 
+        // Notifica el reinicio de la hoja de auditoría
+        notificationWebSocketHandler.broadcast("refresh-revision");
         return revisionGuardada;
+    }
+
+    @Transactional
+    public void agregarProductoARevisionActivaSiExiste(Producto producto, Usuario usuario) {
+        revisionRepository.findByUsuarioAndEstado(usuario, EstadoRevision.ACTIVA)
+                .ifPresent(revisionActiva -> {
+                    RevisionItem nuevoItem = new RevisionItem();
+                    nuevoItem.setRevision(revisionActiva);
+                    nuevoItem.setProducto(producto);
+                    nuevoItem.setRevisado(false);
+
+                    revisionItemRepository.save(nuevoItem);
+
+                    // Sincroniza la adición del producto nuevo en caliente
+                    notificationWebSocketHandler.broadcast("refresh-revision");
+                });
     }
 
     private Usuario obtenerUsuarioAutenticado() {

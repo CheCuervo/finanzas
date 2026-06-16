@@ -5,6 +5,7 @@ import com.cuervo.inventario.dto.*;
 import com.cuervo.inventario.entity.*;
 import com.cuervo.inventario.entity.enums.EstadoLista;
 import com.cuervo.inventario.repository.*;
+import com.cuervo.inventario.handler.NotificationWebSocketHandler; // 🔥 Sincronización en tiempo real
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ public class ListaMercadoService {
     private final ItemMercadoRepository itemMercadoRepository;
     private final ProductoRepository productoRepository;
     private final UsuarioRepository usuarioRepository;
+    private final NotificationWebSocketHandler notificationWebSocketHandler; // 🔥 WebSocket inyectado
 
     @Transactional
     public void registrarRevisionProducto(RevisionProductoRequestDTO request) {
@@ -49,13 +51,15 @@ public class ListaMercadoService {
         } else {
             itemExistente.ifPresent(itemMercadoRepository::delete);
         }
+
+        // Avisa a otros dispositivos que la lista cambió
+        notificationWebSocketHandler.broadcast("refresh-lista");
     }
 
     @Transactional(readOnly = true)
     public ListaActivaResponseDTO obtenerListaActivaAgrupada() {
         Usuario usuario = obtenerUsuarioAutenticado();
 
-        // Cambiamos el orElseThrow por un Optional seguro para evitar caídas la primera vez
         java.util.Optional<ListaMercado> listaActivaOpt = listaMercadoRepository
                 .findByUsuarioIdAndEstado(usuario.getId(), EstadoLista.ACTIVA);
 
@@ -82,7 +86,8 @@ public class ListaMercadoService {
                                         item.getProducto().getNombre(),
                                         item.getCantidadSugerida(),
                                         item.getProducto().getUnidadMedida(),
-                                        item.getComprado_en_super()
+                                        item.getComprado_en_super(),
+                                        item.getProducto().getOrdenSupermercado() // Constructor optimizado de 6 campos
                                 ), Collectors.toList())
                         )
                 ));
@@ -110,9 +115,12 @@ public class ListaMercadoService {
         ListaMercado listaActiva = listaMercadoRepository
                 .findByUsuarioIdAndEstado(usuario.getId(), EstadoLista.ACTIVA)
                 .orElseThrow(() -> new NegocioException("No hay ninguna lista de mercado activa para cancelar"));
-        
+
         listaActiva.setEstado(EstadoLista.CANCELADA);
         listaMercadoRepository.save(listaActiva);
+
+        // Notifica la cancelación en tiempo real
+        notificationWebSocketHandler.broadcast("refresh-lista");
     }
 
     @Transactional
@@ -121,9 +129,12 @@ public class ListaMercadoService {
         ListaMercado listaActiva = listaMercadoRepository
                 .findByUsuarioIdAndEstado(usuario.getId(), EstadoLista.ACTIVA)
                 .orElseThrow(() -> new NegocioException("No hay ninguna lista de mercado activa para finalizar"));
-        
+
         listaActiva.setEstado(EstadoLista.COMPLETADA);
         listaMercadoRepository.save(listaActiva);
+
+        // Notifica la finalización en tiempo real
+        notificationWebSocketHandler.broadcast("refresh-lista");
     }
 
     @Transactional
@@ -132,6 +143,9 @@ public class ListaMercadoService {
                 .orElseThrow(() -> new NegocioException("Ítem de mercado no encontrado"));
         item.setComprado_en_super(comprado);
         itemMercadoRepository.save(item);
+
+        // Sincroniza el check de compra en los demás teléfonos
+        notificationWebSocketHandler.broadcast("refresh-lista");
     }
 
     @Transactional
@@ -139,7 +153,10 @@ public class ListaMercadoService {
         listaMercadoRepository.findByUsuarioIdAndEstado(usuario.getId(), EstadoLista.ACTIVA)
                 .ifPresent(listaActiva -> {
                     itemMercadoRepository.findByListaMercadoIdAndProductoId(listaActiva.getId(), producto.getId())
-                            .ifPresent(itemMercadoRepository::delete);
+                            .ifPresent(item -> {
+                                itemMercadoRepository.delete(item);
+                                notificationWebSocketHandler.broadcast("refresh-lista");
+                            });
                 });
     }
 
@@ -177,6 +194,9 @@ public class ListaMercadoService {
             item.setCantidadSugerida(cantidad);
         }
         itemMercadoRepository.save(item);
+
+        // Actualiza la lista en vivo
+        notificationWebSocketHandler.broadcast("refresh-lista");
     }
 
     @Transactional
@@ -185,12 +205,41 @@ public class ListaMercadoService {
                 .orElseThrow(() -> new NegocioException("Ítem de mercado no encontrado"));
 
         if (nuevaCantidad <= 0) {
-            // Si llega a 0, lo removemos por completo de la lista de compras
             itemMercadoRepository.delete(item);
         } else {
             item.setCantidadSugerida(nuevaCantidad);
             itemMercadoRepository.save(item);
         }
+
+        // Refresca las cantidades de forma reactiva en otros navegadores
+        notificationWebSocketHandler.broadcast("refresh-lista");
+    }
+
+    @Transactional
+    public void registrarRevisionProductoConCantidadExacta(Long productoId, Double stockActual, Double cantidadAComprar) {
+        Usuario usuario = obtenerUsuarioAutenticado();
+        Producto producto = productoRepository.findById(productoId)
+                .orElseThrow(() -> new NegocioException("Producto no encontrado"));
+
+        producto.setStockActual(stockActual);
+        productoRepository.save(producto);
+
+        ListaMercado listaActiva = obtenerOCrearListaActiva(usuario);
+        java.util.Optional<ItemMercado> itemExistente = itemMercadoRepository
+                .findByListaMercadoIdAndProductoId(listaActiva.getId(), producto.getId());
+
+        if (cantidadAComprar > 0) {
+            ItemMercado item = itemExistente.orElse(new ItemMercado());
+            item.setListaMercado(listaActiva);
+            item.setProducto(producto);
+            item.setCantidadSugerida(cantidadAComprar);
+            itemMercadoRepository.save(item);
+        } else {
+            itemExistente.ifPresent(itemMercadoRepository::delete);
+        }
+
+        // Sincroniza adiciones hechas por revisión
+        notificationWebSocketHandler.broadcast("refresh-lista");
     }
 
     private Usuario obtenerUsuarioAutenticado() {
@@ -202,11 +251,11 @@ public class ListaMercadoService {
     private ListaMercado obtenerOCrearListaActiva(Usuario usuario) {
         return listaMercadoRepository.findByUsuarioIdAndEstado(usuario.getId(), EstadoLista.ACTIVA)
                 .orElseGet(() -> {
-                    // 👇 SIMPLEMENTE SE QUITA LA PALABBRA "private"
                     final String prefijo = "Lista de Mercado - ";
                     ListaMercado nuevaLista = new ListaMercado();
                     nuevaLista.setNombre(prefijo + java.time.LocalDate.now().toString());
                     nuevaLista.setUsuario(usuario);
+                    nuevaLista.setEstado(EstadoLista.ACTIVA);
                     return listaMercadoRepository.save(nuevaLista);
                 });
     }

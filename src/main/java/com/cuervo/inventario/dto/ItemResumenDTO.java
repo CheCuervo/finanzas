@@ -11,4 +11,5 @@ public class ItemResumenDTO {
     private Double cantidadSugerida;
     private UnidadMedida unidadMedida;
     private Boolean compradoEnSuper;
+    private Integer ordenSupermercado;
 }

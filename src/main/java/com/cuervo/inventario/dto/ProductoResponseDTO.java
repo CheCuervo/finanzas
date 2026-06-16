@@ -15,6 +15,7 @@ public class ProductoResponseDTO {
 
     private UnidadMedida unidadMedida;
     private Integer ordenUbicacion;
+    private Integer ordenSupermercado;
     private Boolean activo;
     private Boolean obligatorio;
     

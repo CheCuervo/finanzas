@@ -25,7 +25,6 @@ public class ProductoRequestDTO {
     @NotNull(message = "La unidad de medida es obligatoria")
     private UnidadMedida unidadMedida; 
 
-    @NotNull(message = "El orden de ubicación es obligatorio")
     private Integer ordenUbicacion;
 
     @NotNull(message = "El ID de la categoría es obligatorio")

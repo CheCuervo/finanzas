@@ -27,6 +27,7 @@ public class ProductoService {
     private final UsuarioRepository usuarioRepository;
     private final CategoriaRepository categoriaRepository;
     private final SupermercadoRepository supermercadoRepository;
+    private final RevisionService revisionService;
 
     @Transactional
     public ProductoResponseDTO crearProducto(ProductoRequestDTO requestDTO) {
@@ -49,31 +50,45 @@ public class ProductoService {
         Producto producto = new Producto();
         producto.setNombre(requestDTO.getNombre());
         producto.setStockIdeal(requestDTO.getStockIdeal());
-        producto.setStockMinimoSugerido(requestDTO.getStockMinimoSugerido()); // 👇 NUEVO CAMPO
+        producto.setStockMinimoSugerido(requestDTO.getStockMinimoSugerido());
         producto.setUnidadMedida(requestDTO.getUnidadMedida());
-        producto.setOrdenUbicacion(requestDTO.getOrdenUbicacion());
         producto.setObligatorio(requestDTO.getObligatorio());
         producto.setCategoria(categoria);
         producto.setSupermercado(supermercado);
         producto.setUsuario(usuario);
-        
+
+        // 🔥 TRUCO DE USABILIDAD: Seteamos un 0 temporal para saciar el NOT NULL de la Base de Datos
+        producto.setOrdenUbicacion(0);
+        producto.setOrdenSupermercado(0);
+
+        // 1. Guardamos el producto (Ahora Postgres sí aceptará el INSERT porque no lleva nulls)
         Producto productoGuardado = productoRepository.save(producto);
+
+        // 2. Tomamos el ID real autogenerado y sobreescribimos el 0 temporal
+        Integer idComoOrden = productoGuardado.getId().intValue();
+        productoGuardado.setOrdenUbicacion(idComoOrden);
+        productoGuardado.setOrdenSupermercado(idComoOrden);
+
+        // Vinculamos el artículo a la revisión actual de la alacena si está abierta
+        revisionService.agregarProductoARevisionActivaSiExiste(productoGuardado, usuario);
+
+        // Gracias a @Transactional, Hibernate hará el UPDATE definitivo en la BD automáticamente aquí
         return mapearADto(productoGuardado);
     }
 
     @Transactional(readOnly = true)
     public List<ProductoResponseDTO> obtenerMisProductos() {
         String emailUsuario = SecurityContextHolder.getContext().getAuthentication().getName();
-        
+
         Usuario usuario = usuarioRepository.findByEmail(emailUsuario)
                 .orElse(null);
 
         if (usuario == null) {
-            return List.of(); 
+            return List.of();
         }
 
         List<Producto> productos = productoRepository.findByUsuarioIdAndActivoTrueOrderByOrdenUbicacionAsc(usuario.getId());
-        
+
         return productos.stream()
                 .map(this::mapearADto)
                 .collect(Collectors.toList());
@@ -85,18 +100,19 @@ public class ProductoService {
         dto.setNombre(producto.getNombre());
         dto.setStockIdeal(producto.getStockIdeal());
         dto.setStockActual(producto.getStockActual());
-        dto.setStockMinimoSugerido(producto.getStockMinimoSugerido()); // 👇 NUEVO CAMPO
+        dto.setStockMinimoSugerido(producto.getStockMinimoSugerido());
         dto.setUnidadMedida(producto.getUnidadMedida());
         dto.setOrdenUbicacion(producto.getOrdenUbicacion());
+        dto.setOrdenSupermercado(producto.getOrdenSupermercado());
         dto.setActivo(producto.getActivo());
         dto.setObligatorio(producto.getObligatorio());
-        
+
         dto.setCategoriaId(producto.getCategoria().getId());
         dto.setCategoriaNombre(producto.getCategoria().getNombre());
-        
+
         dto.setSupermercadoId(producto.getSupermercado().getId());
         dto.setSupermercadoNombre(producto.getSupermercado().getNombre());
-        
+
         return dto;
     }
 }

@@ -29,6 +29,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
+        // 🔥 ESCUDO PROTECTOR: Si la ruta empieza con /ws, ignoramos por completo el filtro JWT
+        if (request.getServletPath().startsWith("/ws")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         final String token = getTokenFromRequest(request);
 
         if (token == null) {
