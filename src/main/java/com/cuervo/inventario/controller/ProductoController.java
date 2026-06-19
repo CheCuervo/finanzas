@@ -29,4 +29,13 @@ public class ProductoController {
         List<ProductoResponseDTO> productos = productoService.obtenerMisProductos();
         return ResponseEntity.ok(productos);
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> actualizarProducto(
+            @PathVariable Long id,
+            @RequestBody ProductoRequestDTO request) {
+
+        // Aquí llamas a tu servicio para actualizar el producto
+        return ResponseEntity.ok(productoService.actualizar(id, request));
+    }
 }

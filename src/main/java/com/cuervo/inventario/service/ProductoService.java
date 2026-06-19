@@ -94,6 +94,39 @@ public class ProductoService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional
+    public ProductoResponseDTO actualizar(Long id, ProductoRequestDTO request) {
+        // 1. Buscar el producto existente
+        Producto productoExistente = productoRepository.findById(id)
+                .orElseThrow(() -> new NegocioException("Producto no encontrado con ID: " + id));
+
+        // 2. Buscar las relaciones (Categoría y Supermercado) usando los repositorios ya inyectados
+        Categoria categoria = categoriaRepository.findById(request.getCategoriaId())
+                .orElseThrow(() -> new NegocioException("Categoría no encontrada"));
+
+        Supermercado supermercado = supermercadoRepository.findById(request.getSupermercadoId())
+                .orElseThrow(() -> new NegocioException("Supermercado no encontrado"));
+
+        // 3. Mapear todos los campos del DTO al objeto entidad existente
+        productoExistente.setNombre(request.getNombre());
+        productoExistente.setStockIdeal(request.getStockIdeal());
+        productoExistente.setStockMinimoSugerido(request.getStockMinimoSugerido());
+        productoExistente.setUnidadMedida(request.getUnidadMedida());
+        productoExistente.setObligatorio(request.getObligatorio());
+
+        // 4. Actualizar las relaciones
+        productoExistente.setCategoria(categoria);
+        productoExistente.setSupermercado(supermercado);
+
+        // 5. Guardar cambios (Hibernate lo haría automáticamente por el @Transactional, pero save() es buena práctica para asegurar flush)
+        Producto productoActualizado = productoRepository.save(productoExistente);
+
+        // 6. Retornar DTO usando el método privado ya existente
+        return mapearADto(productoActualizado);
+    }
+
+
+
     private ProductoResponseDTO mapearADto(Producto producto) {
         ProductoResponseDTO dto = new ProductoResponseDTO();
         dto.setId(producto.getId());
